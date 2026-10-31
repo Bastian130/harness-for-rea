@@ -47,7 +47,7 @@ app.whenReady().then(async () => {
   const deps = { log, dataDir, launcher: dockerLauncher(), settings: getSettings }
   const runner = new TaskRunner({
     ...deps,
-    apiKey: readKey,
+    apiKey: (provider) => readKey(provider),
     // The orchestrator's tools run in the task's own container (adr:0007-run-the-orchestrators-tools-in-a-task-container).
     workspace: async (task) => {
       const blocked = await preflight(dockerExec)
@@ -72,9 +72,9 @@ app.whenReady().then(async () => {
   const handlers: Handlers = {
     getSettings: () => getSettings(),
     saveSettings: (patch) => saveSettings(patch),
-    keyStatus: () => keyStatus(),
-    saveKey: (key) => saveKey(key),
-    clearKey: () => clearKey(),
+    keyStatus: (provider) => keyStatus(provider),
+    saveKey: (key, provider) => saveKey(key, provider),
+    clearKey: (provider) => clearKey(provider),
     sandboxStatus: () => sandbox.status(),
     buildSandbox: () => sandbox.build().status,
     loginStatus: async () => ((await sandbox.status()).images ? login.refresh() : login.current()),
