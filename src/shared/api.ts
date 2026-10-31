@@ -53,6 +53,7 @@ export const API_SCHEMAS = {
   keyStatus: z.tuple([Provider.optional()]),
   saveKey: z.tuple([z.string().trim().min(8).max(512), Provider.optional()]),
   clearKey: z.tuple([Provider.optional()]),
+  listModels: z.tuple([]),
   sandboxStatus: z.tuple([]),
   buildSandbox: z.tuple([]),
   loginStatus: z.tuple([]),
@@ -94,6 +95,7 @@ export interface ApiResults {
   keyStatus: KeyStatus
   saveKey: KeyStatus
   clearKey: KeyStatus
+  listModels: string[]
   sandboxStatus: SandboxStatus
   buildSandbox: SandboxStatus
   loginStatus: LoginStatus

@@ -11,6 +11,7 @@ import { dockerLauncher, type Launcher } from "../src/main/delegation"
 import { claudeArgs } from "../src/main/sandbox/docker"
 import { PROVIDERS, resolveBaseUrl } from "../src/shared/providers"
 import { friendlyError } from "../src/main/orchestrator/errors"
+import { listModels } from "../src/main/orchestrator/models"
 import { fallbackModels, usageOf } from "../src/main/orchestrator/model"
 import { systemPrompt } from "../src/main/orchestrator/agent"
 import { TaskRunner } from "../src/main/orchestrator/runner"
@@ -665,6 +666,68 @@ describe("OpenAI-compatible providers (adr:0014)", () => {
   it("refuses to start without that provider's key, naming it", () => {
     settings = { ...settings, provider: "deepseek", model: "deepseek-chat" }
     expect(() => runner(null).start({ request: "x", sourceRoot: root })).toThrow("Set your DeepSeek API key in Settings first.")
+  })
+})
+
+describe("listing a provider's models (R1.9)", () => {
+  const json = (payload: unknown, init?: ResponseInit) => new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" }, ...init })
+  const withFetch = async <T>(reply: () => Response, run: () => Promise<T>) => {
+    const keep = globalThis.fetch
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      seen.push({ url: String(url), auth: new Headers(init?.headers).get("authorization") ?? "" })
+      return reply()
+    }) as typeof fetch
+    try {
+      return await run()
+    } finally {
+      globalThis.fetch = keep
+    }
+  }
+
+  it("reads DeepSeek's /models with the key, sorted and de-duplicated", async () => {
+    const ids = await withFetch(
+      () => json({ object: "list", data: [{ id: "deepseek-reasoner" }, { id: "deepseek-chat" }, { id: "deepseek-chat" }, { nope: 1 }] }),
+      () => listModels({ provider: "deepseek", baseUrl: "", apiKey: "sk-deepseek-key00000" }),
+    )
+    expect(ids).toEqual(["deepseek-chat", "deepseek-reasoner"])
+    expect(seen).toEqual([{ url: "https://api.deepseek.com/models", auth: "Bearer sk-deepseek-key00000" }])
+  })
+
+  it("keeps only OpenRouter models that support tools, without needing a key", async () => {
+    const ids = await withFetch(
+      () =>
+        json({
+          data: [
+            { id: "a/chat", supported_parameters: ["tools", "temperature"] },
+            { id: "b/plain", supported_parameters: ["temperature"] },
+            { id: "c/unknown" },
+          ],
+        }),
+      () => listModels({ provider: "openrouter", baseUrl: "", apiKey: null }),
+    )
+    expect(ids).toEqual(["a/chat", "c/unknown"])
+    expect(seen[0]).toEqual({ url: "https://openrouter.ai/api/v1/models", auth: "" })
+  })
+
+  it("uses a custom base URL and explains failures", async () => {
+    await withFetch(
+      () => json({ data: [{ id: "qwen3" }] }),
+      async () => expect(await listModels({ provider: "custom", baseUrl: "http://localhost:11434/v1/", apiKey: null })).toEqual(["qwen3"]),
+    )
+    expect(seen[0].url).toBe("http://localhost:11434/v1/models")
+    await expect(listModels({ provider: "custom", baseUrl: "", apiKey: null })).rejects.toThrow("Set a base URL first.")
+    await withFetch(
+      () => json({}, { status: 401 }),
+      () => expect(listModels({ provider: "deepseek", baseUrl: "", apiKey: "k" })).rejects.toThrow("DeepSeek rejected the API key."),
+    )
+    await withFetch(
+      () => json({}, { status: 500 }),
+      () => expect(listModels({ provider: "deepseek", baseUrl: "", apiKey: "k" })).rejects.toThrow("answered 500"),
+    )
+    await withFetch(
+      () => new Response("<html>", { status: 200 }),
+      () => expect(listModels({ provider: "deepseek", baseUrl: "", apiKey: "k" })).rejects.toThrow("did not return a model list"),
+    )
   })
 })
 

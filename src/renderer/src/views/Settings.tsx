@@ -1,5 +1,5 @@
 import { ExternalLink, Hammer, KeyRound, LogIn, LogOut, RefreshCw } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { PROVIDER_IDS, PROVIDERS, resolveBaseUrl, type ProviderId } from "@shared/providers"
 import { ORCHESTRATOR_EFFORTS, SPECIALIST_EFFORTS, type KeyStatus, type LoginStatus, type SandboxStatus, type Settings } from "@shared/types"
 import { ErrorText, Field, Mono, PanelHeader } from "@/components/common"
@@ -22,6 +22,8 @@ export function SettingsView() {
   const [login, setLogin] = useState<LoginStatus | null>(null)
   const [code, setCode] = useState("")
   const [error, setError] = useState("")
+  const [models, setModels] = useState<string[]>([])
+  const [modelsNote, setModelsNote] = useState("")
   const api = window.hfr.api
 
   useEffect(() => {
@@ -35,6 +37,29 @@ export function SettingsView() {
     })
   }, [api])
 
+  // The provider's own model list, read again when the provider, its endpoint or whether a key is set changes.
+  const activeProvider = settings?.provider
+  const activeBaseUrl = settings?.baseUrl
+  const keySet = key?.set
+  const loadModels = useCallback(
+    () =>
+      api.listModels().then(
+        (list) => {
+          setModels(list)
+          setModelsNote("")
+        },
+        (e: unknown) => {
+          setModels([])
+          setModelsNote(message(e))
+        },
+      ),
+    [api],
+  )
+  useEffect(() => {
+    if (!activeProvider || (PROVIDERS[activeProvider].keyRequired && !keySet) || (activeProvider === "custom" && !activeBaseUrl)) return
+    void loadModels()
+  }, [activeProvider, activeBaseUrl, keySet, loadModels])
+
   const run = async (fn: () => Promise<unknown>) => {
     setError("")
     try {
@@ -47,6 +72,7 @@ export function SettingsView() {
   // Switching provider swaps in that provider's endpoint, model and key; the model name of one is meaningless to another.
   const switchProvider = (id: ProviderId) =>
     run(async () => {
+      setModels([])
       setSettings(await api.saveSettings({ provider: id, baseUrl: PROVIDERS[id].baseUrl, model: PROVIDERS[id].defaultModel || settings?.model }))
       setKey(await api.keyStatus(id))
       setKeyInput("")
@@ -118,10 +144,19 @@ export function SettingsView() {
           >
             <div className="flex gap-2">
               <Input
+                list="hfr-models"
                 defaultValue={settings.model}
                 key={settings.model}
                 onBlur={(e) => e.target.value !== settings.model && save({ model: e.target.value.trim() })}
               />
+              <datalist id="hfr-models">
+                {models.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+              <Button variant="outline" size="default" onClick={loadModels} aria-label="Refresh the model list" title="Refresh the model list">
+                <RefreshCw size={14} />
+              </Button>
               {provider.models.map((m) => (
                 <Button
                   key={m}
@@ -134,6 +169,11 @@ export function SettingsView() {
                 </Button>
               ))}
             </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {models.length > 0
+                ? `${models.length} models from ${provider.label}: clear the field to see them all, or type to filter.`
+                : modelsNote || "Save a key to list this provider's models; you can still type one."}
+            </p>
           </Field>
           <Field
             label="Reasoning effort"

@@ -16,6 +16,8 @@ export interface ProviderPreset {
   baseUrl: string
   /** whether the user may change the base URL */
   editableBaseUrl: boolean
+  /** whether the model list needs a key to be read */
+  keyRequired: boolean
   defaultModel: string
   models: readonly string[]
   keyPlaceholder: string
@@ -28,6 +30,7 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
     kind: "openrouter",
     baseUrl: "https://openrouter.ai/api/v1",
     editableBaseUrl: false,
+    keyRequired: false,
     defaultModel: "deepseek/deepseek-v4.1-flash-1017",
     models: ["deepseek/deepseek-v4.1-flash-1017", "z-ai/glm-5.3-flash"],
     keyPlaceholder: "sk-or-v1-…",
@@ -38,6 +41,7 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
     kind: "openai",
     baseUrl: "https://api.deepseek.com",
     editableBaseUrl: true,
+    keyRequired: true,
     defaultModel: "deepseek-chat",
     models: ["deepseek-chat"],
     keyPlaceholder: "sk-…",
@@ -48,6 +52,7 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
     kind: "openai",
     baseUrl: "",
     editableBaseUrl: true,
+    keyRequired: false,
     defaultModel: "",
     models: [],
     keyPlaceholder: "API key",

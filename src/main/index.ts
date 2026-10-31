@@ -8,6 +8,7 @@ import { approvePatch, dockerLauncher, rejectPatch } from "./delegation"
 import { EventLog } from "./events/log"
 import { registerSecret } from "./events/redact"
 import { makeDispatcher } from "./ipc"
+import { listModels } from "./orchestrator/models"
 import { TaskRunner } from "./orchestrator/runner"
 import { authArgs, dockerExec, preflight, removeLegacy } from "./sandbox/docker"
 import { dockerExecBuffer, SCRATCH, TaskBox, WORKSPACE } from "./sandbox/taskbox"
@@ -75,6 +76,10 @@ app.whenReady().then(async () => {
     keyStatus: (provider) => keyStatus(provider),
     saveKey: (key, provider) => saveKey(key, provider),
     clearKey: (provider) => clearKey(provider),
+    listModels: () => {
+      const { provider, baseUrl } = getSettings()
+      return listModels({ provider, baseUrl, apiKey: readKey(provider) })
+    },
     sandboxStatus: () => sandbox.status(),
     buildSandbox: () => sandbox.build().status,
     loginStatus: async () => ((await sandbox.status()).images ? login.refresh() : login.current()),
